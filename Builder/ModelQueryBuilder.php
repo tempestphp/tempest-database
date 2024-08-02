@@ -32,9 +32,15 @@ final class ModelQueryBuilder
     /** @return TModelClass|null */
     public function first(mixed ...$bindings): ?Model
     {
-        $query = $this->build($bindings)->append('LIMIT 1');
+        $query = $this->build($bindings);
 
-        return map($query)->collection()->to($this->modelClass)[0] ?? null;
+        $result = map($query)->collection()->to($this->modelClass);
+
+        if ($result === []) {
+            return null;
+        }
+
+        return $result[array_key_first($result)];
     }
 
     /** @return TModelClass|null */
@@ -116,12 +122,7 @@ final class ModelQueryBuilder
         );
 
         foreach ($relations as $relation) {
-            $statements[] = sprintf(
-                'INNER JOIN %s ON %s = %s',
-                $relation->getTableName(),
-                $relation->getFieldName('id'),
-                $relation->getRelationFieldName(),
-            );
+            $statements[] = $relation->getStatement();
         }
 
         if ($this->where !== []) {
@@ -134,7 +135,7 @@ final class ModelQueryBuilder
         return new Query(implode(PHP_EOL, $statements), [...$this->bindings, ...$bindings]);
     }
 
-    /** @return \Tempest\Database\Builder\RelationDefinition[] */
+    /** @return \Tempest\Database\Builder\Relations\Relation[] */
     private function getRelations(ModelDefinition $modelDefinition): array
     {
         $relations = $modelDefinition->getEagerRelations();

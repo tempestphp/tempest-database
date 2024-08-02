@@ -4,18 +4,11 @@ declare(strict_types=1);
 
 namespace Tempest\Database\Builder;
 
-use BackedEnum;
-use ReflectionClass;
-use ReflectionException;
-use ReflectionNamedType;
-use ReflectionProperty;
-use function Tempest\attribute;
+use Tempest\Database\Builder\Relations\BelongsToRelation;
+use Tempest\Database\Builder\Relations\HasManyRelation;
 use Tempest\Database\Eager;
-use Tempest\Database\Exceptions\InvalidRelation;
-use Tempest\Mapper\CastWith;
 use function Tempest\reflect;
 use Tempest\Support\Reflection\ClassReflector;
-use function Tempest\type;
 
 /** @phpstan-ignore-next-line */
 readonly class ModelDefinition
@@ -26,36 +19,32 @@ readonly class ModelDefinition
     ) {
     }
 
-    /** @return RelationDefinition[] */
+    /** @return \Tempest\Database\Builder\Relations\Relation[] */
     public function getRelations(string $relationName): array
     {
         $relations = [];
+        $class = reflect($this->modelClass);
+        $relationNames = explode('.', $relationName);
+        $alias = TableName::for($class)->tableName;
 
-        $class = new ReflectionClass($this->modelClass);
-        $parentDefinition = $this;
+        foreach ($relationNames as $relationNamePart) {
+            $property = $class->getProperty($relationNamePart);
 
-        foreach (explode('.', $relationName) as $relationPart) {
-            try {
-                $class = new ReflectionClass(type($class->getProperty($relationPart)));
-
-                $relation = new RelationDefinition(
-                    $class->getName(),
-                    $relationPart,
-                    $parentDefinition,
-                );
-
-                $relations[] = $relation;
-
-                $parentDefinition = $relation;
-            } catch (ReflectionException) {
-                throw new InvalidRelation($this->modelClass, $relationName, $relationPart);
+            if ($property->getType()->isIterable()) {
+                $relations[] = new HasManyRelation($property, $alias);
+                $class = $property->getIterableType()->asClass();
+            } else {
+                $relations[] = new BelongsToRelation($property, $alias);
+                $class = $property->getType()->asClass();
             }
+
+            $alias .= ".{$property->getName()}";
         }
 
         return $relations;
     }
 
-    /** @return RelationDefinition[] */
+    /** @return \Tempest\Database\Builder\Relations\Relation[] */
     public function getEagerRelations(): array
     {
         $relations = [];
@@ -104,46 +93,6 @@ readonly class ModelDefinition
     /** @return \Tempest\Database\Builder\FieldName[] */
     public function getFieldNames(): array
     {
-        $fieldNames = [];
-
-        foreach ((new ReflectionClass($this->modelClass))->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            if (is_a(type($property), BackedEnum::class, true)) {
-                $fieldNames[] = $this->getFieldName($property->getName());
-
-                continue;
-            }
-
-            $type = $property->getType();
-
-            if (! $type instanceof ReflectionNamedType) {
-                continue;
-            }
-
-            if (! $type->isBuiltin()) {
-                $castWith = attribute(CastWith::class)
-                    ->in($property)
-                    ->first();
-
-                if (! $castWith) {
-                    $castWith = attribute(CastWith::class)
-                        ->in($type->getName())
-                        ->first();
-                }
-
-                if ($castWith) {
-                    $fieldNames[] = $this->getFieldName($property->getName());
-                }
-
-                continue;
-            }
-
-            if ($type->getName() === 'array') {
-                continue;
-            }
-
-            $fieldNames[] = $this->getFieldName($property->getName());
-        }
-
-        return $fieldNames;
+        return FieldName::make(reflect($this->modelClass));
     }
 }

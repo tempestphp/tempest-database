@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tempest\Database\Mappers;
 
+use BackedEnum;
+use Tempest\Database\Id;
+use Tempest\Database\Model;
 use Tempest\Database\Query;
-use function Tempest\make;
 use Tempest\Mapper\Mapper;
-use Tempest\Support\ArrayHelper;
+use Tempest\Support\Reflection\ClassReflector;
+use Tempest\Support\Reflection\PropertyReflector;
 
 final readonly class QueryToModelMapper implements Mapper
 {
@@ -18,25 +21,165 @@ final readonly class QueryToModelMapper implements Mapper
 
     public function map(mixed $from, mixed $to): array
     {
-        /** @var Query $from */
-        return array_map(
-            fn (array $item) => make($to)->from($this->resolveData($item)),
-            $from->fetch(),
-        );
-    }
+        $class = new ClassReflector($to);
+        $table = $class->callStatic('table');
 
-    private function resolveData(array $data): array
-    {
-        $values = [];
+        $models = [];
 
-        foreach ($data as $key => $value) {
-            $keyParts = explode('.', $key);
+        foreach ($from->fetch() as $row) {
+            $idField = $table->tableName . '.id';
 
-            array_shift($keyParts);
+            $id = $row[$idField];
 
-            ArrayHelper::set($values, implode('.', $keyParts), $value);
+            $model = $models[$id] ?? $class->newInstanceWithoutConstructor();
+
+            $models[$id] = $this->parse($class, $model, $row);
         }
 
-        return $values;
+        return $this->makeLazyCollection($models);
+    }
+
+    private function parse(ClassReflector $class, Model $model, array $row): Model
+    {
+        foreach ($row as $key => $value) {
+            $keyParts = explode('.', $key);
+
+            $propertyName = $keyParts[1];
+
+            $count = count($keyParts);
+
+            if ($count > 3) {
+                $property = $class->getProperty($propertyName);
+
+                $childModel = $property->get($model, $property->getType()->asClass()->newInstanceWithoutConstructor());
+
+                unset($keyParts[0]);
+
+                $property->set($model, $this->parse(
+                    $class->getProperty($propertyName)->getType()->asClass(),
+                    $childModel,
+                    [implode('.', $keyParts) => $value]
+                ));
+            } elseif ($count === 3) {
+                if (str_contains($keyParts[1], '[]')) {
+                    $property = $class->getProperty(rtrim($propertyName, '[]'));
+
+                    $childId = $row[$keyParts[0] . '.' . $keyParts[1] . '.id'];
+
+                    $model = $this->parseHasMany(
+                        $property,
+                        $model,
+                        (string)$childId,
+                        $keyParts[2],
+                        $value,
+                    );
+                } else {
+                    $property = $class->getProperty($propertyName);
+
+                    $model = $this->parseBelongsTo(
+                        $property,
+                        $model,
+                        $keyParts[2],
+                        $value,
+                    );
+                }
+            } else {
+                $property = $class->getProperty($propertyName);
+
+                $model = $this->parseProperty($property, $model, $value);
+            }
+        }
+
+        return $model;
+    }
+
+    private function parseProperty(PropertyReflector $property, Model $model, mixed $value): Model
+    {
+        $type = $property->getType();
+
+        $value = match (true) {
+            $type->matches(BackedEnum::class) => $value ? $type->asClass()->callStatic('tryFrom', $value) : null,
+            $type->matches(Id::class) => new Id($value),
+            default => $value,
+        };
+
+        $property->set($model, $value);
+
+        return $model;
+    }
+
+    private function parseBelongsTo(PropertyReflector $property, Model $model, string $childProperty, mixed $value): Model
+    {
+        $childModel = $property->get(
+            $model,
+            $property->getType()->asClass()->newInstanceWithoutConstructor(),
+        );
+
+        $childProperty = (new ClassReflector($childModel))->getProperty($childProperty);
+
+        // TODO: must pass through the mapper
+        $this->parseProperty(
+            $childProperty,
+            $childModel,
+            $value,
+        );
+
+        $property->set($model, $childModel);
+
+        return $model;
+    }
+
+    private function parseHasMany(PropertyReflector $property, Model $model, string $childId, string $childProperty, mixed $value): Model
+    {
+        $collection = $property->get($model, []);
+
+        $childModel = $collection[$childId] ?? $property->getIterableType()->asClass()->newInstanceWithoutConstructor();
+
+        $childProperty = (new ClassReflector($childModel))->getProperty($childProperty);
+
+        // TODO: must pass through the mapper
+        $this->parseProperty(
+            $childProperty,
+            $childModel,
+            $value,
+        );
+
+        $collection[$childId] = $childModel;
+
+        $property->set($model, $collection);
+
+        return $model;
+    }
+
+    private function makeLazyCollection(array $models): array
+    {
+        $lazy = [];
+
+        foreach ($models as $model) {
+            $lazy[] = $this->makeLazyModel($model);
+        }
+
+        return $lazy;
+    }
+
+    private function makeLazyModel(Model $model): Model
+    {
+        $classReflector = new ClassReflector($model);
+
+        foreach ($classReflector->getPublicProperties() as $property) {
+            if ($property->isIterable()) {
+                foreach ($property->get($model) as $childModel) {
+                    $this->makeLazyModel($childModel);
+                }
+
+                break;
+            }
+
+            if ($property->isUninitialized($model)) {
+                $property->unset($model);
+            }
+        }
+
+        return $model;
     }
 }
