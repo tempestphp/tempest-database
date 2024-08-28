@@ -44,73 +44,103 @@ final class CreateTableStatement implements QueryStatement
         return $this;
     }
 
-    public function text(string $name, bool $nullable = false): self
-    {
+    public function text(
+        string $name,
+        bool $nullable = false,
+        ?string $default = null,
+    ): self {
         $this->statements[] = new TextStatement(
             name: $name,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function varchar(string $name, int $length = 255, bool $nullable = false): self
-    {
+    public function varchar(
+        string $name,
+        int $length = 255,
+        bool $nullable = false,
+        ?string $default = null,
+    ): self {
         $this->statements[] = new VarcharStatement(
             name: $name,
             size: $length,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function char(string $name, bool $nullable = false): self
-    {
+    public function char(
+        string $name,
+        bool $nullable = false,
+        ?string $default = null,
+    ): self {
         $this->statements[] = new CharStatement(
             name: $name,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function integer(string $name, bool $unsigned = false, bool $nullable = false): self
-    {
+    public function integer(
+        string $name,
+        bool $unsigned = false,
+        bool $nullable = false,
+        ?int $default = null,
+    ): self {
         $this->statements[] = new IntegerStatement(
             name: $name,
             unsigned: $unsigned,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function float(string $name, bool $nullable = false): self
-    {
+    public function float(
+        string $name,
+        bool $nullable = false,
+        ?float $default = null,
+    ): self {
         $this->statements[] = new FloatStatement(
             name: $name,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function datetime(string $name, bool $nullable = false): self
-    {
+    public function datetime(
+        string $name,
+        bool $nullable = false,
+        ?string $default = null,
+    ): self {
         $this->statements[] = new DatetimeStatement(
             name: $name,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
     }
 
-    public function date(string $name, bool $nullable = false): self
-    {
+    public function date(
+        string $name,
+        bool $nullable = false,
+        ?string $default = null,
+    ): self {
         $this->statements[] = new DateStatement(
             name: $name,
             nullable: $nullable,
+            default: $default,
         );
 
         return $this;
@@ -118,7 +148,7 @@ final class CreateTableStatement implements QueryStatement
 
     public function compile(DatabaseDialect $dialect): string
     {
-        return sprintf(
+        $compiled = sprintf(
             'CREATE TABLE %s (%s);',
             new TableName($this->tableName),
             implode(
@@ -131,5 +161,7 @@ final class CreateTableStatement implements QueryStatement
                 ),
             ),
         );
+
+        return str_replace('  ', ' ', $compiled);
     }
 }

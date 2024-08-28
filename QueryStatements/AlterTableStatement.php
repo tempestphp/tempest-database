@@ -74,7 +74,7 @@ final class AlterTableStatement implements QueryStatement
 
     public function compile(DatabaseDialect $dialect): string
     {
-        return sprintf(
+        $compiled = sprintf(
             'ALTER TABLE %s %s;',
             new TableName($this->tableName),
             implode(
@@ -87,5 +87,7 @@ final class AlterTableStatement implements QueryStatement
                 ),
             ),
         );
+
+        return str_replace('  ', ' ', $compiled);
     }
 }

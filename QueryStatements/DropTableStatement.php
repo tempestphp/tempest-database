@@ -20,6 +20,7 @@ final readonly class DropTableStatement implements QueryStatement
     public function compile(DatabaseDialect $dialect): string
     {
         $statements = [];
+
         foreach ($this->constraints as $constraint) {
             $statements[] = $constraint->compile($dialect);
         }
