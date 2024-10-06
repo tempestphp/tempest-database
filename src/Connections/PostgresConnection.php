@@ -7,8 +7,6 @@ namespace Tempest\Database\Connections;
 use SensitiveParameter;
 use Tempest\Database\DatabaseConnection;
 use Tempest\Database\DatabaseDialect;
-use Tempest\Database\Tables\NamingStrategy;
-use Tempest\Database\Tables\PluralizedSnakeCaseStrategy;
 
 final class PostgresConnection implements DatabaseConnection
 {
@@ -23,7 +21,6 @@ final class PostgresConnection implements DatabaseConnection
         public string $password = '',
         #[SensitiveParameter]
         public string $database = 'postgres',
-        public NamingStrategy $namingStrategy = new PluralizedSnakeCaseStrategy()
     ) {
     }
 
@@ -54,10 +51,5 @@ final class PostgresConnection implements DatabaseConnection
     public function dialect(): DatabaseDialect
     {
         return DatabaseDialect::POSTGRESQL;
-    }
-
-    public function tableNamingStrategy(): NamingStrategy
-    {
-        return $this->namingStrategy;
     }
 }

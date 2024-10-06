@@ -7,8 +7,6 @@ namespace Tempest\Database\Connections;
 use SensitiveParameter;
 use Tempest\Database\DatabaseConnection;
 use Tempest\Database\DatabaseDialect;
-use Tempest\Database\Tables\NamingStrategy;
-use Tempest\Database\Tables\PluralizedSnakeCaseStrategy;
 
 final readonly class MySqlConnection implements DatabaseConnection
 {
@@ -23,7 +21,6 @@ final readonly class MySqlConnection implements DatabaseConnection
         public string $password = '',
         #[SensitiveParameter]
         public string $database = 'app',
-        public NamingStrategy $namingStrategy = new PluralizedSnakeCaseStrategy()
     ) {
     }
 
@@ -45,10 +42,5 @@ final readonly class MySqlConnection implements DatabaseConnection
     public function dialect(): DatabaseDialect
     {
         return DatabaseDialect::MYSQL;
-    }
-
-    public function tableNamingStrategy(): NamingStrategy
-    {
-        return $this->namingStrategy;
     }
 }

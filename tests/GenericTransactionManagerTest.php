@@ -13,6 +13,7 @@ use Tempest\Database\Transactions\GenericTransactionManager;
 
 /**
  * @internal
+ * @small
  */
 final class GenericTransactionManagerTest extends TestCase
 {
