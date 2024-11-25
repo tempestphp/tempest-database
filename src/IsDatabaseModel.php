@@ -8,7 +8,6 @@ use Tempest\Database\Builder\ModelQueryBuilder;
 use Tempest\Database\Builder\TableName;
 use Tempest\Database\Exceptions\MissingRelation;
 use Tempest\Database\Exceptions\MissingValue;
-use function Tempest\get;
 use function Tempest\make;
 use Tempest\Reflection\ClassReflector;
 use Tempest\Reflection\PropertyReflector;
@@ -55,12 +54,7 @@ trait IsDatabaseModel
 
     public static function table(): TableName
     {
-        $name = get(DatabaseConfig::class)
-            ->connection()
-            ->tableNamingStrategy()
-            ->getName(self::class);
-
-        return new TableName($name);
+        return new TableName(pathinfo(str_replace('\\', '/', static::class), PATHINFO_FILENAME));
     }
 
     public static function new(mixed ...$params): self
@@ -157,17 +151,5 @@ trait IsDatabaseModel
         return $this;
     }
 
-    public function delete(): void
-    {
-        $table = self::table();
-
-        $query = new Query(sprintf(
-            "DELETE FROM %s WHERE `id` = :id",
-            $table,
-        ), [
-            'id' => $this->getId()->id,
-        ]);
-
-        $query->execute();
-    }
+    // TODO: delete
 }

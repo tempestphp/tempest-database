@@ -4,21 +4,22 @@ declare(strict_types=1);
 
 namespace Tempest\Database;
 
+use Tempest\Container\Container;
 use Tempest\Core\DiscoversPath;
 use Tempest\Core\Discovery;
-use Tempest\Core\DiscoveryLocation;
-use Tempest\Core\IsDiscovery;
+use Tempest\Core\HandlesDiscoveryCache;
+use Tempest\Database\Migrations\Migration as MigrationModel;
 use Tempest\Reflection\ClassReflector;
 
 final class MigrationDiscovery implements Discovery, DiscoversPath
 {
-    use IsDiscovery;
+    use HandlesDiscoveryCache;
 
-    public function __construct(private readonly DatabaseConfig $databaseConfig)
+    public function __construct(private DatabaseConfig $databaseConfig)
     {
     }
 
-    public function discover(DiscoveryLocation $location, ClassReflector $class): void
+    public function discover(ClassReflector $class): void
     {
         if (! $class->implements(Migration::class)) {
             return;
@@ -28,10 +29,10 @@ final class MigrationDiscovery implements Discovery, DiscoversPath
             return;
         }
 
-        $this->discoveryItems->add($location, $class->getName());
+        $this->databaseConfig->addMigration($class->getName());
     }
 
-    public function discoverPath(DiscoveryLocation $location, string $path): void
+    public function discoverPath(string $path): void
     {
         if (! str_ends_with($path, '.sql')) {
             return;
@@ -51,14 +52,19 @@ final class MigrationDiscovery implements Discovery, DiscoversPath
                 content: $content,
             );
 
-            $this->discoveryItems->add($location, $migration);
+            $this->databaseConfig->addMigration($migration);
         }
     }
 
-    public function apply(): void
+    public function createCachePayload(): string
     {
-        foreach ($this->discoveryItems as $migration) {
-            $this->databaseConfig->addMigration($migration);
-        }
+        return serialize($this->databaseConfig->getMigrations());
+    }
+
+    public function restoreCachePayload(Container $container, string $payload): void
+    {
+        $migrations = unserialize($payload, ['allowed_classes' => [MigrationModel::class, GenericMigration::class]]);
+
+        $this->databaseConfig->setMigrations($migrations);
     }
 }
