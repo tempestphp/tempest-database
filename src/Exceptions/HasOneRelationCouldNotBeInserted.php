@@ -4,7 +4,7 @@ namespace Tempest\Database\Exceptions;
 
 use Exception;
 
-final class CannotInsertHasManyRelation extends Exception
+final class HasOneRelationCouldNotBeInserted extends Exception
 {
     public function __construct(string $modelName, string $relationName)
     {

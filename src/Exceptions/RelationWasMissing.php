@@ -6,7 +6,7 @@ namespace Tempest\Database\Exceptions;
 
 use Exception;
 
-final class MissingRelation extends Exception
+final class RelationWasMissing extends Exception
 {
     public function __construct(object $model, string $relation)
     {
