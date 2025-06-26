@@ -4,7 +4,7 @@ namespace Tempest\Database\Exceptions;
 
 use Exception;
 
-final class InvalidUpdateStatement extends Exception
+final class UpdateStatementWasInvalid extends Exception
 {
     public function __construct()
     {

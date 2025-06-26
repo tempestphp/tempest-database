@@ -5,7 +5,7 @@ namespace Tempest\Database\Exceptions;
 use Exception;
 use Tempest\Support\Arr\ImmutableArray;
 
-final class InsertColumnMismatch extends Exception
+final class InsertColumnsMismatched extends Exception
 {
     public function __construct(
         ImmutableArray $expected,

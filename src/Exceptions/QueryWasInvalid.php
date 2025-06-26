@@ -8,7 +8,7 @@ use Exception;
 use PDOException;
 use Tempest\Database\Query;
 
-final class QueryException extends Exception
+final class QueryWasInvalid extends Exception
 {
     public function __construct(Query $query, array $bindings, PDOException $previous)
     {

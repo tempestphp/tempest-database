@@ -6,7 +6,7 @@ namespace Tempest\Database;
 
 use Exception;
 
-final class UnsupportedDialect extends Exception
+final class DialectWasNotSupported extends Exception
 {
     public function __construct()
     {

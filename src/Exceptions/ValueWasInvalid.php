@@ -6,7 +6,7 @@ namespace Tempest\Database\Exceptions;
 
 use Exception;
 
-final class InvalidValue extends Exception
+final class ValueWasInvalid extends Exception
 {
     public function __construct(string $field, string $value)
     {
