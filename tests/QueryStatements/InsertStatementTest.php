@@ -21,20 +21,24 @@ final class InsertStatementTest extends TestCase
             arr(['foo' => 3, 'bar' => 4]),
         ]));
 
-        $expected = <<<SQL
-        INSERT INTO `foo` AS `bar` (`foo`, `bar`)
-        VALUES (?, ?), (?, ?)
-        SQL;
+        $expected = 'INSERT INTO `foo` AS `bar` (`foo`, `bar`) VALUES (?, ?), (?, ?)';
 
         $this->assertSame($expected, $statement->compile(DatabaseDialect::MYSQL));
         $this->assertSame($expected, $statement->compile(DatabaseDialect::SQLITE));
 
-        $expectedPostgres = <<<PSQL
-        INSERT INTO `foo` AS `bar` (`foo`, `bar`)
-        VALUES (?, ?), (?, ?) RETURNING *
-        PSQL;
+        $expectedPostgres = 'INSERT INTO `foo` AS `bar` (`foo`, `bar`) VALUES (?, ?), (?, ?) RETURNING *';
 
         $this->assertSame($expectedPostgres, $statement->compile(DatabaseDialect::POSTGRESQL));
+    }
+
+    public function test_insert_empty_row(): void
+    {
+        $tableDefinition = new TableDefinition('foo', 'bar');
+        $statement = new InsertStatement($tableDefinition);
+
+        $this->assertSame('INSERT INTO `foo` AS `bar` () VALUES ()', $statement->compile(DatabaseDialect::MYSQL));
+        $this->assertSame('INSERT INTO `foo` AS `bar` DEFAULT VALUES', $statement->compile(DatabaseDialect::SQLITE));
+        $this->assertSame('INSERT INTO `foo` AS `bar` DEFAULT VALUES RETURNING *', $statement->compile(DatabaseDialect::POSTGRESQL));
     }
 
     public function test_exception_on_column_mismatch(): void

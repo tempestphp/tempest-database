@@ -8,7 +8,7 @@ use Tempest\Database\Config\DatabaseConfig;
 use Tempest\Database\Eager;
 use Tempest\Database\HasMany;
 use Tempest\Database\HasOne;
-use Tempest\Database\Id;
+use Tempest\Database\PrimaryKey;
 use Tempest\Database\Relation;
 use Tempest\Database\Table;
 use Tempest\Database\Virtual;
@@ -21,7 +21,7 @@ use Tempest\Validation\Exceptions\ValidationFailed;
 use Tempest\Validation\SkipValidation;
 use Tempest\Validation\Validator;
 
-use function Tempest\Database\model;
+use function Tempest\Database\inspect;
 use function Tempest\get;
 use function Tempest\Support\arr;
 use function Tempest\Support\str;
@@ -31,6 +31,10 @@ final class ModelInspector
     private(set) ?ClassReflector $reflector;
 
     private(set) object|string $instance;
+
+    private Validator $validator {
+        get => get(Validator::class);
+    }
 
     public function __construct(
         private(set) object|string $model,
@@ -102,6 +106,14 @@ final class ModelInspector
         $values = [];
 
         foreach ($this->reflector->getProperties() as $property) {
+            if ($property->isVirtual()) {
+                continue;
+            }
+
+            if ($property->hasAttribute(Virtual::class)) {
+                continue;
+            }
+
             if (! $property->isInitialized($this->instance)) {
                 continue;
             }
@@ -241,6 +253,81 @@ final class ModelInspector
         return $this->getBelongsTo($name) ?? $this->getHasOne($name) ?? $this->getHasMany($name);
     }
 
+    /**
+     * @return \Tempest\Support\Arr\ImmutableArray<array-key, Relation>
+     */
+    public function getRelations(): ImmutableArray
+    {
+        if (! $this->isObjectModel()) {
+            return arr();
+        }
+
+        $relationFields = arr();
+
+        foreach ($this->reflector->getPublicProperties() as $property) {
+            if ($relation = $this->getRelation($property->getName())) {
+                $relationFields[] = $relation;
+            }
+        }
+
+        return $relationFields;
+    }
+
+    /**
+     * @return \Tempest\Support\Arr\ImmutableArray<array-key, PropertyReflector>
+     */
+    public function getValueFields(): ImmutableArray
+    {
+        if (! $this->isObjectModel()) {
+            return arr();
+        }
+
+        $valueFields = arr();
+
+        foreach ($this->reflector->getPublicProperties() as $property) {
+            if ($property->isVirtual()) {
+                continue;
+            }
+
+            if ($property->hasAttribute(Virtual::class)) {
+                continue;
+            }
+
+            if ($this->isRelation($property->getName())) {
+                continue;
+            }
+
+            $valueFields[] = $property;
+        }
+
+        return $valueFields;
+    }
+
+    public function isRelationLoaded(string|PropertyReflector|Relation $relation): bool
+    {
+        if (! $this->isObjectModel()) {
+            return false;
+        }
+
+        if (! ($relation instanceof Relation)) {
+            $relation = $this->getRelation($relation);
+        }
+
+        if (! $relation) {
+            return false;
+        }
+
+        if (! $relation->property->isInitialized($this->instance)) {
+            return false;
+        }
+
+        if ($relation->property->getValue($this->instance) === null) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function getSelectFields(): ImmutableArray
     {
         if (! $this->isObjectModel()) {
@@ -248,6 +335,10 @@ final class ModelInspector
         }
 
         $selectFields = arr();
+
+        if ($primaryKey = $this->getPrimaryKeyProperty()) {
+            $selectFields[] = $primaryKey->getName();
+        }
 
         foreach ($this->reflector->getPublicProperties() as $property) {
             $relation = $this->getRelation($property->getName());
@@ -257,6 +348,10 @@ final class ModelInspector
             }
 
             if ($property->hasAttribute(Virtual::class)) {
+                continue;
+            }
+
+            if ($property->getType()->equals(PrimaryKey::class)) {
                 continue;
             }
 
@@ -288,7 +383,7 @@ final class ModelInspector
 
         unset($relationNames[0]);
 
-        $relationModel = model($currentRelation);
+        $relationModel = inspect($currentRelation);
 
         $newRelationString = implode('.', $relationNames);
         $currentRelation->setParent($parent);
@@ -330,7 +425,7 @@ final class ModelInspector
                 $currentRelationName,
             ), '.');
 
-            foreach (model($currentRelation)->resolveEagerRelations($newParent) as $name => $nestedEagerRelation) {
+            foreach (inspect($currentRelation)->resolveEagerRelations($newParent) as $name => $nestedEagerRelation) {
                 $relations[$name] = $nestedEagerRelation;
             }
         }
@@ -344,7 +439,6 @@ final class ModelInspector
             return;
         }
 
-        $validator = new Validator();
         $failingRules = [];
 
         foreach ($data as $key => $value) {
@@ -354,7 +448,11 @@ final class ModelInspector
                 continue;
             }
 
-            $failingRulesForProperty = $validator->validateValueForProperty(
+            if ($property->getType()->getName() === PrimaryKey::class) {
+                continue;
+            }
+
+            $failingRulesForProperty = $this->validator->validateValueForProperty(
                 $property,
                 $value,
             );
@@ -365,7 +463,7 @@ final class ModelInspector
         }
 
         if ($failingRules !== []) {
-            throw new ValidationFailed($this->reflector->getName(), $failingRules);
+            throw new ValidationFailed($failingRules, $this->reflector->getName());
         }
     }
 
@@ -378,17 +476,41 @@ final class ModelInspector
         return $this->instance;
     }
 
-    public function getPrimaryFieldName(): string
+    public function getQualifiedPrimaryKey(): ?string
     {
-        return $this->getTableDefinition()->name . '.' . $this->getPrimaryKey();
+        $primaryKey = $this->getPrimaryKey();
+
+        return $primaryKey !== null
+            ? ($this->getTableDefinition()->name . '.' . $primaryKey)
+            : null;
     }
 
-    public function getPrimaryKey(): string
+    public function getPrimaryKey(): ?string
     {
-        return 'id';
+        return $this->getPrimaryKeyProperty()?->getName();
     }
 
-    public function getPrimaryKeyValue(): ?Id
+    public function hasPrimaryKey(): bool
+    {
+        return $this->getPrimaryKeyProperty() !== null;
+    }
+
+    public function getPrimaryKeyProperty(): ?PropertyReflector
+    {
+        if (! $this->isObjectModel()) {
+            return null;
+        }
+
+        $primaryKeys = arr($this->reflector->getProperties())
+            ->filter(fn (PropertyReflector $property) => $property->getType()->matches(PrimaryKey::class));
+
+        return match ($primaryKeys->count()) {
+            0 => null,
+            default => $primaryKeys->first(),
+        };
+    }
+
+    public function getPrimaryKeyValue(): ?PrimaryKey
     {
         if (! $this->isObjectModel()) {
             return null;
@@ -398,6 +520,16 @@ final class ModelInspector
             return null;
         }
 
-        return $this->instance->{$this->getPrimaryKey()};
+        $primaryKeyProperty = $this->getPrimaryKeyProperty();
+
+        if ($primaryKeyProperty === null) {
+            return null;
+        }
+
+        if (! $primaryKeyProperty->isInitialized($this->instance)) {
+            return null;
+        }
+
+        return $primaryKeyProperty->getValue($this->instance);
     }
 }
