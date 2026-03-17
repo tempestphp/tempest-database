@@ -45,9 +45,7 @@ final class GenericDatabaseTest extends TestCase
             $eventBus,
         );
 
-        $result = $database->withinTransaction(function () {
-            return true;
-        });
+        $result = $database->withinTransaction(fn () => true);
 
         $this->assertTrue($result);
     }

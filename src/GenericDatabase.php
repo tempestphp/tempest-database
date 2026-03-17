@@ -14,6 +14,7 @@ use Tempest\Database\Connection\PDOConnection;
 use Tempest\Database\Exceptions\QueryWasInvalid;
 use Tempest\Database\Transactions\TransactionManager;
 use Tempest\EventBus\EventBus;
+use Tempest\Mapper\Serializer;
 use Tempest\Mapper\SerializerFactory;
 use Tempest\Support\Str\ImmutableString;
 use Throwable;
@@ -24,6 +25,7 @@ use UnitEnum;
 final class GenericDatabase implements Database
 {
     private ?PDOStatement $lastStatement = null;
+
     private ?Query $lastQuery = null;
 
     public DatabaseDialect $dialect {
@@ -146,7 +148,7 @@ final class GenericDatabase implements Database
                 $value = $value->execute();
             } elseif (is_string($value) || is_numeric($value)) {
                 // Keep value as is
-            } elseif ($serializer = $serializerFactory->forValue($value)) {
+            } elseif (($serializer = $serializerFactory->forValue($value)) instanceof Serializer) {
                 $value = $serializer->serialize($value);
             }
 

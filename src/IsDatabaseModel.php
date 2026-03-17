@@ -51,10 +51,7 @@ trait IsDatabaseModel
     /** @return QueryBuilder<self> */
     protected static function queryBuilder(): QueryBuilder
     {
-        /** @var QueryBuilder<self> $query */
-        $query = query(self::class);
-
-        return $query;
+        return query(self::class);
     }
 
     /**
@@ -64,9 +61,7 @@ trait IsDatabaseModel
      */
     public static function select(): SelectQueryBuilder
     {
-        $query = self::queryBuilder()->select();
-
-        return $query;
+        return self::queryBuilder()->select();
     }
 
     /**
@@ -209,7 +204,7 @@ trait IsDatabaseModel
 
         $loadedRelations = $model
             ->getRelations()
-            ->filter(fn (Relation $relation) => $model->isRelationLoaded($relation));
+            ->filter($model->isRelationLoaded(...));
 
         $primaryKeyProperty = $model->getPrimaryKeyProperty();
         $primaryKeyValue = $primaryKeyProperty->getValue($this);
