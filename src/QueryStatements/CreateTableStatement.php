@@ -201,12 +201,13 @@ final class CreateTableStatement implements QueryStatement, HasTrailingStatement
     /**
      * Adds an `INTEGER` column to the table.
      */
-    public function integer(string $name, bool $unsigned = false, bool $nullable = false, ?int $default = null): self
+    public function integer(string $name, bool $unsigned = false, bool $nullable = false, int|DatabaseIntegerSize $size = DatabaseIntegerSize::DEFAULT, ?int $default = null): self
     {
         $this->statements[] = new IntegerStatement(
             name: $name,
             unsigned: $unsigned,
             nullable: $nullable,
+            size: $size,
             default: $default,
         );
 
