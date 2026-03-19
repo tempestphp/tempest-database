@@ -141,10 +141,6 @@ final class SelectModelMapper implements Mapper
 
                     $originalKey .= $relation->name . '.';
 
-                    if (! $data->hasKey(trim($originalKey, '.'))) {
-                        $data->set(trim($originalKey, '.'), []);
-                    }
-
                     if ($hasManyId === null) {
                         break;
                     }
