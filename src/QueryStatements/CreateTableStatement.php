@@ -7,6 +7,7 @@ namespace Tempest\Database\QueryStatements;
 use BackedEnum;
 use Tempest\Database\Builder\TableDefinition;
 use Tempest\Database\Config\DatabaseDialect;
+use Tempest\Database\Enums\DatabaseTextLength;
 use Tempest\Database\HasTrailingStatements;
 use Tempest\Database\QueryStatement;
 use Tempest\Support\Json;
@@ -143,12 +144,13 @@ final class CreateTableStatement implements QueryStatement, HasTrailingStatement
     /**
      * Adds a `TEXT` column to the table.
      */
-    public function text(string $name, bool $nullable = false, ?string $default = null): self
+    public function text(string $name, bool $nullable = false, int|DatabaseTextLength $length = DatabaseTextLength::DEFAULT, ?string $default = null): self
     {
         $this->statements[] = new TextStatement(
             name: $name,
             nullable: $nullable,
             default: $default,
+            length: $length,
         );
 
         return $this;
