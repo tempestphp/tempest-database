@@ -4,6 +4,7 @@ namespace Tempest\Database\Builder\QueryBuilders;
 
 use Closure;
 use Tempest\Database\BelongsTo;
+use Tempest\Database\BelongsToMany;
 use Tempest\Database\Builder\ModelInspector;
 use Tempest\Database\Database;
 use Tempest\Database\DatabaseContext;
@@ -11,7 +12,9 @@ use Tempest\Database\Exceptions\HasManyRelationCouldNotBeInsterted;
 use Tempest\Database\Exceptions\HasOneRelationCouldNotBeInserted;
 use Tempest\Database\Exceptions\ModelDidNotHavePrimaryColumn;
 use Tempest\Database\HasMany;
+use Tempest\Database\HasManyThrough;
 use Tempest\Database\HasOne;
+use Tempest\Database\HasOneThrough;
 use Tempest\Database\OnDatabase;
 use Tempest\Database\PrimaryKey;
 use Tempest\Database\Query;
@@ -260,6 +263,69 @@ final class InsertQueryBuilder implements BuildsQuery
         };
     }
 
+    private function addBelongsToManyRelationCallback(string $relationName, iterable $relations): void
+    {
+        $belongsToMany = $this->model->getBelongsToMany(name: $relationName);
+
+        if (! $belongsToMany instanceof BelongsToMany) {
+            return;
+        }
+
+        if (! $this->model->hasPrimaryKey()) {
+            throw ModelDidNotHavePrimaryColumn::neededForRelation(model: $this->model->getName(), relationType: 'BelongsToMany');
+        }
+
+        $this->after[] = function (PrimaryKey $parentId) use ($belongsToMany, $relations) {
+            $ownerModel = inspect(model: $this->model->getName());
+            $targetModel = inspect(model: $belongsToMany->property->getIterableType()->asClass());
+
+            $pivotTable = $belongsToMany->pivot ?? implode(separator: '_', array: Arr\sort(array: [$ownerModel->getTableName(), $targetModel->getTableName()]));
+
+            $ownerFk = $belongsToMany->ownerJoin
+                ? $this->removeTablePrefix(columnName: $belongsToMany->ownerJoin)
+                : Intl\singularize_last_word(value: $ownerModel->getTableName()) . '_' . $ownerModel->getPrimaryKey();
+
+            $targetPk = $targetModel->getPrimaryKey();
+
+            if (! $targetPk) {
+                throw ModelDidNotHavePrimaryColumn::neededForRelation(model: $targetModel->getName(), relationType: 'BelongsToMany');
+            }
+
+            $targetFk = $belongsToMany->relatedOwnerJoin
+                ? $this->removeTablePrefix(columnName: $belongsToMany->relatedOwnerJoin)
+                : Intl\singularize_last_word(value: $targetModel->getTableName()) . '_' . $targetPk;
+
+            $pivotRows = [];
+
+            foreach ($relations as $related) {
+                $relatedId = match (true) {
+                    is_object($related) && isset($related->{$targetPk}) => $related->{$targetPk},
+                    is_array($related) && isset($related[$targetPk]) => $related[$targetPk],
+                    default => new InsertQueryBuilder(
+                        model: $targetModel->getName(),
+                        rows: [$related],
+                        serializerFactory: $this->serializerFactory,
+                    )->execute(),
+                };
+
+                $pivotRows[] = [
+                    $ownerFk => $parentId,
+                    $targetFk => $relatedId,
+                ];
+            }
+
+            if ($pivotRows === []) {
+                return null;
+            }
+
+            return new InsertQueryBuilder(
+                model: $pivotTable,
+                rows: $pivotRows,
+                serializerFactory: $this->serializerFactory,
+            );
+        };
+    }
+
     private function handleCustomHasOneRelation(HasOne $hasOne, object|array $relation, PrimaryKey $parentId): null
     {
         $relatedModelId = new InsertQueryBuilder(
@@ -442,6 +508,22 @@ final class InsertQueryBuilder implements BuildsQuery
                     $this->addHasOneRelationCallback($propertyName, $value);
                 }
 
+                continue;
+            }
+
+            if ($definition->getBelongsToMany(name: $propertyName) instanceof BelongsToMany) {
+                if (is_iterable($value)) {
+                    $this->addBelongsToManyRelationCallback(relationName: $propertyName, relations: $value);
+                }
+
+                continue;
+            }
+
+            if ($definition->getHasManyThrough(name: $propertyName) instanceof HasManyThrough) {
+                continue;
+            }
+
+            if ($definition->getHasOneThrough(name: $propertyName) instanceof HasOneThrough) {
                 continue;
             }
 
