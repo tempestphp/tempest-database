@@ -18,6 +18,8 @@ use function Tempest\Support\str;
 #[Attribute(flags: Attribute::TARGET_PROPERTY)]
 final class BelongsToMany implements Relation
 {
+    use HasTableAlias;
+
     public PropertyReflector $property;
 
     public string $name {
@@ -54,7 +56,7 @@ final class BelongsToMany implements Relation
             ->map(map: fn (
                 $field,
             ) => new FieldStatement(
-                field: $targetModel->getTableName() . '.' . $field,
+                field: "{$this->getTableAlias(tableName: $targetModel->getTableName())}.{$field}",
             )
                 ->withAlias(
                     alias: sprintf(
@@ -120,7 +122,6 @@ final class BelongsToMany implements Relation
             ownerModel: $ownerModel,
             targetModel: $targetModel,
         );
-
         return new JoinStatement(
             statement: sprintf(
                 '%s %s',
@@ -131,6 +132,7 @@ final class BelongsToMany implements Relation
                 $this->buildSecondJoin(
                     targetModel: $targetModel,
                     pivotTable: $pivotTable,
+                    tableAlias: $this->getTableAlias(tableName: $targetModel->getTableName()),
                 ),
             ),
         );
@@ -174,11 +176,20 @@ final class BelongsToMany implements Relation
     private function buildSecondJoin(
         ModelInspector $targetModel,
         string $pivotTable,
+        string $tableAlias,
     ): string {
+        $tableName = $targetModel->getTableName();
+        $tableRef = $tableAlias !== $tableName
+            ? sprintf('%s AS %s', $tableName, $tableAlias)
+            : $tableName;
+
         return sprintf(
             'LEFT JOIN %s ON %s = %s',
-            $targetModel->getTableName(),
-            $this->resolveRelatedRelationJoin(targetModel: $targetModel),
+            $tableRef,
+            $this->resolveRelatedRelationJoin(
+                targetModel: $targetModel,
+                tableAlias: $tableAlias,
+            ),
             $this->resolveRelatedOwnerJoin(
                 targetModel: $targetModel,
                 pivotTable: $pivotTable,
@@ -316,7 +327,7 @@ final class BelongsToMany implements Relation
     /**
      * PK on target: target.id
      */
-    private function resolveRelatedRelationJoin(ModelInspector $targetModel): string
+    private function resolveRelatedRelationJoin(ModelInspector $targetModel, string $tableAlias): string
     {
         $relatedRelationJoin = $this->relatedRelationJoin;
 
@@ -329,7 +340,7 @@ final class BelongsToMany implements Relation
         ) {
             return sprintf(
                 '%s.%s',
-                $targetModel->getTableName(),
+                $tableAlias,
                 $relatedRelationJoin,
             );
         }
@@ -349,7 +360,7 @@ final class BelongsToMany implements Relation
 
         return sprintf(
             '%s.%s',
-            $targetModel->getTableName(),
+            $tableAlias,
             $primaryKey,
         );
     }
