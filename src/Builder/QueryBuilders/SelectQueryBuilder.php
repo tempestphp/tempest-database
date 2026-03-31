@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tempest\Database\Builder\QueryBuilders;
 
 use Closure;
+use Tempest\Database\AggregateFunction;
 use Tempest\Database\Builder\ModelInspector;
 use Tempest\Database\Database;
 use Tempest\Database\DatabaseContext;
@@ -32,6 +33,8 @@ use Tempest\Support\Str\ImmutableString;
 use function Tempest\Container\get;
 use function Tempest\Database\inspect;
 use function Tempest\Mapper\map;
+use function Tempest\Support\arr;
+use function Tempest\Support\str;
 
 /**
  * @template TModel
@@ -394,6 +397,68 @@ final class SelectQueryBuilder implements BuildsQuery, SupportsWhereStatements, 
         }
 
         return new Query($select, [...$this->bindings, ...$bindings])->onDatabase($this->onDatabase);
+    }
+
+    /**
+     * Executes an aggregate query and returns the sum of the given column.
+     */
+    public function sum(string $column): int|float
+    {
+        return $this->aggregate(function: AggregateFunction::SUM, column: $column);
+    }
+
+    /**
+     * Executes an aggregate query and returns the average of the given column.
+     */
+    public function avg(string $column): float
+    {
+        return (float) $this->aggregate(function: AggregateFunction::AVG, column: $column);
+    }
+
+    /**
+     * Executes an aggregate query and returns the maximum value of the given column.
+     */
+    public function max(string $column): mixed
+    {
+        return $this->aggregate(function: AggregateFunction::MAX, column: $column);
+    }
+
+    /**
+     * Executes an aggregate query and returns the minimum value of the given column.
+     */
+    public function min(string $column): mixed
+    {
+        return $this->aggregate(function: AggregateFunction::MIN, column: $column);
+    }
+
+    private function aggregate(AggregateFunction $function, string $column): mixed
+    {
+        $key = str(string: $function->value)->lower()->toString();
+
+        $field = new FieldStatement(
+            field: "{$function->value}(`{$column}`) AS `{$key}`",
+        );
+
+        $result =
+            SelectQueryBuilder::fromQueryBuilder(
+                source: $this,
+                fields: arr(input: [$field]),
+            )
+                ->build()
+                ->fetchFirst()[$key] ?? null;
+
+        if ($result === null) {
+            return match ($function) {
+                AggregateFunction::AVG => 0.0,
+                AggregateFunction::SUM => 0,
+                default => null,
+            };
+        }
+
+        return match ($function) {
+            AggregateFunction::SUM => str(string: (string) $result)->contains(needle: '.') ? (float) $result : (int) $result,
+            default => $result,
+        };
     }
 
     private function clone(): self
