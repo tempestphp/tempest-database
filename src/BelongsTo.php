@@ -126,7 +126,11 @@ final class BelongsTo implements Relation
         }
 
         if ($relationJoin) {
-            return $relationJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $relationJoin,
+                originalTable: $relationModel->getTableName(),
+                aliasedTable: $tableAlias,
+            );
         }
 
         $primaryKey = $relationModel->getPrimaryKey();
@@ -167,18 +171,23 @@ final class BelongsTo implements Relation
     private function getOwnerJoin(ModelInspector $ownerModel): string
     {
         $ownerJoin = $this->ownerJoin;
+        $ownerTable = $ownerModel->getTableName();
 
         if ($ownerJoin && ! strpos($ownerJoin, '.')) {
-            $ownerJoin = sprintf('%s.%s', $ownerModel->getTableName(), $ownerJoin);
+            $ownerJoin = sprintf('%s.%s', $ownerTable, $ownerJoin);
         }
 
         if ($ownerJoin) {
-            return $ownerJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $ownerJoin,
+                originalTable: $ownerModel->getTableName(),
+                aliasedTable: $ownerTable,
+            );
         }
 
         return sprintf(
             '%s.%s',
-            $ownerModel->getTableName(),
+            $ownerTable,
             $this->getOwnerFieldName(),
         );
     }

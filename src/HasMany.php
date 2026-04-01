@@ -138,7 +138,13 @@ final class HasMany implements Relation
         }
 
         if ($ownerJoin) {
-            return $ownerJoin;
+            $ownerModel = inspect($this->property->getIterableType()->asClass());
+
+            return $this->replaceTableReference(
+                qualifiedColumn: $ownerJoin,
+                originalTable: $ownerModel->getTableName(),
+                aliasedTable: $tableReference,
+            );
         }
 
         $primaryKey = $relationModel->getPrimaryKey();
@@ -183,17 +189,22 @@ final class HasMany implements Relation
     private function getRelationJoin(ModelInspector $relationModel): string
     {
         $relationJoin = $this->relationJoin;
+        $ownerTable = $relationModel->getTableName();
 
         if ($relationJoin && ! strpos($relationJoin, '.')) {
             $relationJoin = sprintf(
                 '%s.%s',
-                $relationModel->getTableName(),
+                $ownerTable,
                 $relationJoin,
             );
         }
 
         if ($relationJoin) {
-            return $relationJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $relationJoin,
+                originalTable: $relationModel->getTableName(),
+                aliasedTable: $ownerTable,
+            );
         }
 
         $primaryKey = $relationModel->getPrimaryKey();
@@ -204,7 +215,7 @@ final class HasMany implements Relation
 
         return sprintf(
             '%s.%s',
-            $relationModel->getTableName(),
+            $ownerTable,
             $primaryKey,
         );
     }

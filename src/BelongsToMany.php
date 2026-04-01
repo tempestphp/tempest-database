@@ -247,6 +247,7 @@ final class BelongsToMany implements Relation
     private function resolveRelationJoin(ModelInspector $ownerModel): string
     {
         $relationJoin = $this->relationJoin;
+        $ownerTable = $ownerModel->getTableName();
 
         if (
             $relationJoin
@@ -257,13 +258,17 @@ final class BelongsToMany implements Relation
         ) {
             return sprintf(
                 '%s.%s',
-                $ownerModel->getTableName(),
+                $ownerTable,
                 $relationJoin,
             );
         }
 
         if ($relationJoin) {
-            return $relationJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $relationJoin,
+                originalTable: $ownerModel->getTableName(),
+                aliasedTable: $ownerTable,
+            );
         }
 
         $primaryKey = $ownerModel->getPrimaryKey();
@@ -277,7 +282,7 @@ final class BelongsToMany implements Relation
 
         return sprintf(
             '%s.%s',
-            $ownerModel->getTableName(),
+            $ownerTable,
             $primaryKey,
         );
     }

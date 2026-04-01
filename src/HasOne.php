@@ -110,7 +110,11 @@ final class HasOne implements Relation
         }
 
         if ($ownerJoin) {
-            return $ownerJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $ownerJoin,
+                originalTable: inspect($this->property->getType()->asClass())->getTableName(),
+                aliasedTable: $tableReference,
+            );
         }
 
         $primaryKey = $relationModel->getPrimaryKey();
@@ -155,17 +159,22 @@ final class HasOne implements Relation
     private function getRelationJoin(ModelInspector $relationModel): string
     {
         $relationJoin = $this->relationJoin;
+        $ownerTable = $relationModel->getTableName();
 
         if ($relationJoin && ! strpos($relationJoin, '.')) {
             $relationJoin = sprintf(
                 '%s.%s',
-                $relationModel->getTableName(),
+                $ownerTable,
                 $relationJoin,
             );
         }
 
         if ($relationJoin) {
-            return $relationJoin;
+            return $this->replaceTableReference(
+                qualifiedColumn: $relationJoin,
+                originalTable: $relationModel->getTableName(),
+                aliasedTable: $ownerTable,
+            );
         }
 
         $primaryKey = $relationModel->getPrimaryKey();
@@ -176,7 +185,7 @@ final class HasOne implements Relation
 
         return sprintf(
             '%s.%s',
-            $relationModel->getTableName(),
+            $ownerTable,
             $primaryKey,
         );
     }
