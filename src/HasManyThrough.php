@@ -339,6 +339,7 @@ final class HasManyThrough implements Relation
     {
         $ownerModel = inspect(model: $this->property->getClass());
         $intermediateModel = inspect(model: $this->through);
+        $targetModel = inspect(model: $this->property->getIterableType()->asClass());
 
         $intermediateTable = $intermediateModel->getTableName();
         $ownerTable = $ownerModel->getTableName();
@@ -346,10 +347,17 @@ final class HasManyThrough implements Relation
 
         $fk = $this->ownerJoin ?? str(string: $ownerTable)->singularizeLastWord()->append(suffix: "_{$ownerPK}");
 
+        $targetTable = $targetModel->getTableName();
+        $intermediatePK = $intermediateModel->getPrimaryKey();
+        $targetFK = $this->throughOwnerJoin ?? str(string: $intermediateTable)->singularizeLastWord()->append(suffix: "_{$intermediatePK}");
+
         return new WhereExistsStatement(
             relatedTable: $intermediateTable,
-            relatedModelName: inspect(model: $this->property->getIterableType()->asClass())->getName(),
+            relatedModelName: $targetModel->getName(),
             condition: "{$intermediateTable}.{$fk} = {$ownerTable}.{$ownerPK}",
+            joinStatement: new JoinStatement(
+                statement: "INNER JOIN {$targetTable} ON {$targetTable}.{$targetFK} = {$intermediateTable}.{$intermediatePK}",
+            ),
         );
     }
 }
