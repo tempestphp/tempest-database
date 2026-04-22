@@ -6,12 +6,15 @@ namespace Tempest\Database;
 
 use Attribute;
 use Tempest\Database\Builder\ModelInspector;
+use Tempest\Database\Builder\QueryBuilders\QueryBuilder;
+use Tempest\Database\Builder\QueryBuilders\WhereFieldScope;
 use Tempest\Database\Exceptions\ModelDidNotHavePrimaryColumn;
 use Tempest\Database\QueryStatements\FieldStatement;
 use Tempest\Database\QueryStatements\JoinStatement;
 use Tempest\Database\QueryStatements\WhereExistsStatement;
 use Tempest\Reflection\PropertyReflector;
 use Tempest\Support\Arr\ImmutableArray;
+use UnitEnum;
 
 use function Tempest\Support\str;
 
@@ -176,6 +179,19 @@ final class HasMany implements Relation
             relatedModelName: $relatedModel->getName(),
             condition: "{$relatedTable}.{$fk} = {$parentTable}.{$parentPK}",
         );
+    }
+
+    public function query(PrimaryKey $primaryKey, null|string|UnitEnum $onDatabase = null): QueryBuilder
+    {
+        $relatedClassName = $this->property->getIterableType()->getName();
+        $parentModel = inspect(model: $this->property->getClass());
+        $parentTable = $parentModel->getTableName();
+        $parentPK = $parentModel->getPrimaryKey();
+        $fk = $this->ownerJoin ?? str(string: $parentTable)->singularizeLastWord() . '_' . $parentPK;
+
+        return query(model: $relatedClassName)
+            ->onDatabase(databaseTag: $onDatabase)
+            ->scope(scope: new WhereFieldScope(field: $fk, value: $primaryKey));
     }
 
     private function isSelfReferencing(): bool

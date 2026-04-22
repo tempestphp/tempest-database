@@ -8,6 +8,8 @@ use Tempest\Database\Builder\QueryBuilders\CountQueryBuilder;
 use Tempest\Database\Builder\QueryBuilders\InsertQueryBuilder;
 use Tempest\Database\Builder\QueryBuilders\QueryBuilder;
 use Tempest\Database\Builder\QueryBuilders\SelectQueryBuilder;
+use Tempest\Database\Exceptions\PrimaryKeyWasNotInitialized;
+use Tempest\Database\Exceptions\PropertyWasNotARelation;
 use Tempest\Database\Exceptions\RelationWasMissing;
 use Tempest\Database\Exceptions\ValueWasMissing;
 use Tempest\Reflection\PropertyReflector;
@@ -262,6 +264,29 @@ trait IsDatabaseModel
         }
 
         return $this;
+    }
+
+    /**
+     * Returns a query builder scoped to a collection relation on this model.
+     */
+    public function query(string $relation): QueryBuilder
+    {
+        $model = inspect(model: $this);
+
+        if (! $model->hasPrimaryKey() || ! $model->getPrimaryKeyProperty()->isInitialized(object: $this)) {
+            throw new PrimaryKeyWasNotInitialized(model: $model->getName());
+        }
+
+        $resolved = $model->getRelation(name: $relation);
+
+        if ($resolved === null) {
+            throw new PropertyWasNotARelation(property: $relation, model: $model->getName());
+        }
+
+        return $resolved->query(
+            primaryKey: $model->getPrimaryKeyValue(),
+            onDatabase: $this->onDatabase,
+        );
     }
 
     /**

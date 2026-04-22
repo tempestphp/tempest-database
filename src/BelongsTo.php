@@ -6,12 +6,15 @@ namespace Tempest\Database;
 
 use Attribute;
 use Tempest\Database\Builder\ModelInspector;
+use Tempest\Database\Builder\QueryBuilders\QueryBuilder;
+use Tempest\Database\Builder\QueryBuilders\WhereRawScope;
 use Tempest\Database\Exceptions\ModelDidNotHavePrimaryColumn;
 use Tempest\Database\QueryStatements\FieldStatement;
 use Tempest\Database\QueryStatements\JoinStatement;
 use Tempest\Database\QueryStatements\WhereExistsStatement;
 use Tempest\Reflection\PropertyReflector;
 use Tempest\Support\Arr\ImmutableArray;
+use UnitEnum;
 
 use function Tempest\Support\str;
 
@@ -190,5 +193,32 @@ final class BelongsTo implements Relation
             $ownerTable,
             $this->getOwnerFieldName(),
         );
+    }
+
+    public function query(PrimaryKey $primaryKey, null|string|UnitEnum $onDatabase = null): QueryBuilder
+    {
+        $relatedClassName = $this->property->getType()->getName();
+        $relatedModel = inspect(model: $this->property->getType()->asClass());
+        $ownerModel = inspect(model: $this->property->getClass());
+        $relatedTable = $relatedModel->getTableName();
+        $relatedPK = $relatedModel->getPrimaryKey();
+        $ownerTable = $ownerModel->getTableName();
+        $ownerPK = $ownerModel->getPrimaryKey();
+        $fk = $this->getOwnerFieldName();
+
+        return query(model: $relatedClassName)
+            ->onDatabase(databaseTag: $onDatabase)
+            ->scope(scope: new WhereRawScope(
+                statement: sprintf(
+                    '%s.%s = (SELECT %s FROM %s WHERE %s.%s = ?)',
+                    $relatedTable,
+                    $relatedPK,
+                    $fk,
+                    $ownerTable,
+                    $ownerTable,
+                    $ownerPK,
+                ),
+                binding: $primaryKey,
+            ));
     }
 }
