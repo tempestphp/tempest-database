@@ -117,9 +117,9 @@ trait HasWhereRelationMethods
             separator: '.',
             limit: 2,
         );
-        $relationName =  $parts[0];
+        $relationName = (string) $parts[0];
         $nestedPath = isset($parts[1])
-            ?  $parts[1]
+            ? (string) $parts[1]
             : null;
 
         $existsStatement = $this->model

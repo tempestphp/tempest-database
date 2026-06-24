@@ -567,7 +567,7 @@ final class UpdateQueryBuilder implements BuildsQuery, SupportsWhereStatements
 
         $foreignKeyColumn = $hasOne->relationJoin ?? $this->removeTablePrefix($hasOne->ownerJoin);
 
-        new UpdateQueryBuilder($ownerModel->getName(), [$foreignKeyColumn => $relatedModelId?->value], $this->serializerFactory)
+        new UpdateQueryBuilder($ownerModel->getName(), [$foreignKeyColumn => $relatedModelId->value], $this->serializerFactory)
             ->whereField($ownerModel->getPrimaryKey(), $parentId->value)
             ->build()
             ->onDatabase($this->onDatabase)

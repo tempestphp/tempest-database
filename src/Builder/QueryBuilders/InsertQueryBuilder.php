@@ -344,7 +344,7 @@ final class InsertQueryBuilder implements BuildsQuery
             $ownerModel->getPrimaryKey(),
         );
 
-        $query = new Query($updateQuery, [$relatedModelId?->value, $parentId->value]);
+        $query = new Query($updateQuery, [$relatedModelId->value, $parentId->value]);
         $query->onDatabase($this->onDatabase)->execute();
 
         return null;
