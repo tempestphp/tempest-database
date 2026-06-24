@@ -77,7 +77,7 @@ final class GenericDatabase implements Database
                 return null;
             }
 
-            if ($this->lastQuery->primaryKeyColumn && isset($data[$this->lastQuery->primaryKeyColumn])) {
+            if ($this->lastQuery?->primaryKeyColumn && isset($data[$this->lastQuery->primaryKeyColumn])) {
                 return PrimaryKey::tryFrom($data[$this->lastQuery->primaryKeyColumn]);
             }
 
